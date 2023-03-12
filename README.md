@@ -1,2 +1,2 @@
 # JuiceBot
-Discord bot to learn Rust. 
+Discord Bot
