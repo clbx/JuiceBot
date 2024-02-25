@@ -2,12 +2,13 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
 
 	"github.com/bwmarrin/discordgo"
+
+	"github.com/clbx/JuiceBot/cmd"
 )
 
 // Bot parameters
@@ -18,8 +19,6 @@ var (
 )
 
 var s *discordgo.Session
-
-var dogId string
 
 func init() {
 	tokenEnv := os.Getenv("TOKEN")
@@ -40,32 +39,22 @@ func init() {
 }
 
 var (
-	integerOptionMinValue          = 1.0
-	dmPermission                   = false
-	defaultMemberPermissions int64 = discordgo.PermissionManageServer
+	// integerOptionMinValue          = 1.0
+	// dmPermission                   = false
+	// defaultMemberPermissions int64 = discordgo.PermissionManageServer
 
 	commands = []*discordgo.ApplicationCommand{
 		{
 			Name:        "ping",
 			Description: "pong",
 		},
-		{
-			Name:        "dog",
-			Description: "Homophobia is bad",
-			Options: []*discordgo.ApplicationCommandOption{
-				{
-					Type:        discordgo.ApplicationCommandOptionUser,
-					Name:        "user",
-					Description: "User to remind",
-					Required:    false,
-				},
-			},
-		},
+		cmd.DogCommand,
 	}
 
+	// Add commands here.
 	commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
 		"ping": ping,
-		"dog":  dog,
+		"dog":  cmd.DogAction,
 	}
 )
 
@@ -78,51 +67,6 @@ func ping(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	})
 }
 
-func dog(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	options := i.ApplicationCommandData().Options
-	optionMap := make(map[string]*discordgo.ApplicationCommandInteractionDataOption, len(options))
-
-	for _, opt := range options {
-		optionMap[opt.Name] = opt
-	}
-
-	if len(options) == 0 {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "Dogging Disabled",
-			},
-		})
-		dogId = ""
-	}
-
-	if opt, ok := optionMap["user"]; ok {
-		dogId = opt.UserValue(nil).ID
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf("Now Dogging: <@%s>", dogId),
-			},
-		})
-	}
-
-}
-
-func dogMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
-	if m.Author.ID == dogId {
-		err := s.MessageReactionAdd(m.ChannelID, m.ID, "homophobic:985705480791937066")
-		if err != nil {
-			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Error Encountered: %s", err))
-		}
-	}
-
-	emojis := m.GetCustomEmojis()
-	for i := 0; i < len(emojis); i++ {
-		fmt.Printf("%s\n", emojis[i].ID)
-	}
-
-}
-
 func init() {
 	s.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if h, ok := commandHandlers[i.ApplicationCommandData().Name]; ok {
@@ -130,10 +74,12 @@ func init() {
 		}
 	})
 
-	s.AddHandler(dogMessage)
+	// Add Handlers here.
+	s.AddHandler(cmd.DogMessage)
 }
 
 func main() {
+
 	s.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
 		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
 	})
