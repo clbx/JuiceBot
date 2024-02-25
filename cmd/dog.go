@@ -9,7 +9,7 @@ import (
 var dogId = ""
 
 //which guild is which user being dogged in
-dogging := make(map[int]int)
+var dogging = make(map[string]string)
 
 var DogCommand = &discordgo.ApplicationCommand{
 	Name:        "dog",
