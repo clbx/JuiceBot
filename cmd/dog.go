@@ -8,6 +8,9 @@ import (
 
 var dogId = ""
 
+//which guild is which user being dogged in
+dogging := make(map[int]int)
+
 var DogCommand = &discordgo.ApplicationCommand{
 	Name:        "dog",
 	Description: "Homophobia is bad",
@@ -40,7 +43,9 @@ func DogAction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	}
 
 	if opt, ok := optionMap["user"]; ok {
-		dogId = opt.UserValue(nil).ID
+
+		dogging[i.GuildID] = opt.UserValue(nil).ID
+
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
@@ -52,7 +57,7 @@ func DogAction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 }
 
 func DogMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
-	if m.Author.ID == dogId {
+	if m.Author.ID == dogging[m.GuildID] {
 		err := s.MessageReactionAdd(m.ChannelID, m.ID, "homophobic:985705480791937066")
 		if err != nil {
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Error Encountered: %s", err))
