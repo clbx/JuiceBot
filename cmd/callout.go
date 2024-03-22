@@ -10,6 +10,20 @@ import (
 )
 
 func CalloutHandler(s *discordgo.Session, m *discordgo.MessageCreate, config *util.JuiceBotConfig) {
+
+	var contains bool
+
+	for _, item := range config.CalloutConfig.CalloutGuilds {
+		if item == m.GuildID {
+			contains = true
+			break
+		}
+	}
+
+	if !contains {
+		return
+	}
+
 	rand.Seed(time.Now().UnixNano())
 	if rand.Intn(config.CalloutConfig.CalloutChance) == 0 {
 
