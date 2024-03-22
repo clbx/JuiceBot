@@ -100,6 +100,10 @@ func init() {
 	s.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
 		cmd.DogHandler(s, m, &config)
 	})
+
+	s.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
+		cmd.CalloutHandler(s, m, &config)
+	})
 }
 
 func main() {

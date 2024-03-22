@@ -7,8 +7,6 @@ import (
 	"github.com/clbx/juicebot/util"
 )
 
-var dogId = ""
-
 //which guild is which user being dogged in
 var dogging = make(map[string]string)
 
@@ -40,7 +38,6 @@ func DogAction(s *discordgo.Session, i *discordgo.InteractionCreate, config *uti
 				Content: "Dogging Disabled",
 			},
 		})
-		dogId = ""
 	}
 
 	if opt, ok := optionMap["user"]; ok {
