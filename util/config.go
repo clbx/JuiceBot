@@ -7,12 +7,15 @@ import (
 )
 
 type JuiceBotConfig struct {
+	Debug     bool `yaml:"debug"`
+	DogConfig struct {
+		DogEmote string `yaml:"dogEmote"`
+	} `yaml:"dogConfig"`
 	CalloutConfig struct {
-		CalloutGuilds    []string
-		CalloutMessages  []string
-		CalloutFrequency int
-		CalloutVariance  int
-	}
+		CalloutGuilds   []string `yaml:"calloutGuilds"`
+		CalloutMessages []string `yaml:"calloutMessages"`
+		CalloutChance   int      `yaml:"calloutChance"`
+	} `yaml:"calloutConfig"`
 }
 
 func NewJuiceBotConfig(configPath string) *JuiceBotConfig {

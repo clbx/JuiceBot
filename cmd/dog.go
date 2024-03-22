@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/clbx/juicebot/util"
 )
 
 var dogId = ""
@@ -13,7 +14,7 @@ var dogging = make(map[string]string)
 
 var DogCommand = &discordgo.ApplicationCommand{
 	Name:        "dog",
-	Description: "Homophobia is bad",
+	Description: "Dog a user",
 	Options: []*discordgo.ApplicationCommandOption{
 		{
 			Type:        discordgo.ApplicationCommandOptionUser,
@@ -24,7 +25,7 @@ var DogCommand = &discordgo.ApplicationCommand{
 	},
 }
 
-func DogAction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func DogAction(s *discordgo.Session, i *discordgo.InteractionCreate, config *util.JuiceBotConfig) {
 	options := i.ApplicationCommandData().Options
 	optionMap := make(map[string]*discordgo.ApplicationCommandInteractionDataOption, len(options))
 
@@ -49,16 +50,15 @@ func DogAction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf("Now Dogging: <@%s>", dogId),
+				Content: fmt.Sprintf("Now Dogging: <@%s>", dogging[i.GuildID]),
 			},
 		})
 	}
-
 }
 
-func DogMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
+func DogHandler(s *discordgo.Session, m *discordgo.MessageCreate, config *util.JuiceBotConfig) {
 	if m.Author.ID == dogging[m.GuildID] {
-		err := s.MessageReactionAdd(m.ChannelID, m.ID, "homophobic:985705480791937066")
+		err := s.MessageReactionAdd(m.ChannelID, m.ID, config.DogConfig.DogEmote)
 		if err != nil {
 			s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Error Encountered: %s", err))
 		}
@@ -68,5 +68,4 @@ func DogMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 	for i := 0; i < len(emojis); i++ {
 		fmt.Printf("%s\n", emojis[i].ID)
 	}
-
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -9,13 +10,17 @@ import (
 	"github.com/bwmarrin/discordgo"
 
 	"github.com/clbx/juicebot/cmd"
+	"github.com/clbx/juicebot/util"
 )
+
+var config util.JuiceBotConfig
 
 // Bot parameters
 var (
 	GuildID        = flag.String("guild", "", "Test guild ID. If not passed - bot registers commands globally")
 	BotToken       = flag.String("token", "", "Bot access token")
 	RemoveCommands = flag.Bool("rmcmd", true, "Remove all commands after shutdowning or not")
+	ConfigPath     = flag.String("config", "./config.yaml", "Path to the config file")
 )
 
 var s *discordgo.Session
@@ -27,6 +32,12 @@ func init() {
 		BotToken = &tokenEnv
 	}
 
+	configEnv := os.Getenv("CONFIG")
+	if configEnv != "" {
+		log.Printf("Config path loaded from Environment Variable")
+		ConfigPath = &configEnv
+	}
+
 	flag.Parse()
 }
 
@@ -35,6 +46,12 @@ func init() {
 	s, err = discordgo.New("Bot " + *BotToken)
 	if err != nil {
 		log.Fatalf("Invalid bot parameters: %v", err)
+	}
+
+	config = *util.NewJuiceBotConfig(*ConfigPath)
+
+	if config.Debug {
+		fmt.Printf("%+v\n", config)
 	}
 }
 
@@ -53,8 +70,12 @@ var (
 
 	// Add commands here.
 	commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
-		"ping": ping,
-		"dog":  cmd.DogAction,
+		"ping": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			ping(s, i) // Assuming 'ping' is adjusted to accept JuiceBotConfig
+		},
+		"dog": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			cmd.DogAction(s, i, &config) // Adjust 'DogAction' to accept JuiceBotConfig
+		},
 	}
 )
 
@@ -75,7 +96,10 @@ func init() {
 	})
 
 	// Add Handlers here.
-	s.AddHandler(cmd.DogMessage)
+	// s.AddHandler(cmd.DogHandler)
+	s.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
+		cmd.DogHandler(s, m, &config)
+	})
 }
 
 func main() {

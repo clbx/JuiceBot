@@ -1,0 +1,9 @@
+debug: true
+dogConfig:
+  dogEmote:
+calloutConfig:
+  calloutGuilds:
+  - <guild_id>
+  calloutMessages:
+  - <message>
+  calloutChance: 1500
