@@ -8,7 +8,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
-	"github.com/clbx/JuiceBot/cmd"
+	"github.com/clbx/juicebot/cmd"
 )
 
 // Bot parameters
