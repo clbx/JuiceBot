@@ -1,2 +1,3 @@
 # JuiceBot
-Discord Bot
+
+worlds worst discord bot
