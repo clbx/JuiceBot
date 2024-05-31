@@ -1,7 +1,7 @@
 package util
 
 import (
-	"io/ioutil"
+	"os"
 
 	"gopkg.in/yaml.v2"
 )
@@ -16,10 +16,19 @@ type JuiceBotConfig struct {
 		CalloutMessages []string `yaml:"calloutMessages"`
 		CalloutChance   int      `yaml:"calloutChance"`
 	} `yaml:"calloutConfig"`
+	DB struct {
+		Path string `yaml:"path"`
+	} `yaml:"db"`
+	Games struct {
+		Channels []struct {
+			GuildID   string `yaml:"guildid"`
+			ChannelID string `yaml:"channelid"`
+		} `yaml:"channels"`
+	} `yaml:"games"`
 }
 
 func NewJuiceBotConfig(configPath string) *JuiceBotConfig {
-	data, err := ioutil.ReadFile(configPath)
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		panic(err)
 	}

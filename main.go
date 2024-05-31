@@ -1,29 +1,43 @@
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
 
-	"github.com/bwmarrin/discordgo"
+	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/bwmarrin/discordgo"
 	"github.com/clbx/juicebot/cmd"
 	"github.com/clbx/juicebot/util"
 )
 
-var config util.JuiceBotConfig
-
-// Bot parameters
 var (
+	config util.JuiceBotConfig
+	db     *sql.DB
+	s      *discordgo.Session
+
 	GuildID        = flag.String("guild", "", "Test guild ID. If not passed - bot registers commands globally")
 	BotToken       = flag.String("token", "", "Bot access token")
 	RemoveCommands = flag.Bool("rmcmd", true, "Remove all commands after shutdowning or not")
 	ConfigPath     = flag.String("config", "./config.yaml", "Path to the config file")
-)
 
-var s *discordgo.Session
+	// integerOptionMinValue          = 1.0
+	// dmPermission                   = false
+	// defaultMemberPermissions int64 = discordgo.PermissionManageServer
+
+	commands = []*discordgo.ApplicationCommand{
+		cmd.PingCommand,
+		cmd.DogCommand,
+		cmd.AddGameCommand,
+		cmd.RemoveGameCommand,
+	}
+
+	commandHandlers map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate)
+)
 
 func init() {
 	tokenEnv := os.Getenv("TOKEN")
@@ -39,9 +53,7 @@ func init() {
 	}
 
 	flag.Parse()
-}
 
-func init() {
 	var err error
 	s, err = discordgo.New("Bot " + *BotToken)
 	if err != nil {
@@ -53,42 +65,34 @@ func init() {
 	if config.Debug {
 		fmt.Printf("%+v\n", config)
 	}
-}
 
-var (
-	// integerOptionMinValue          = 1.0
-	// dmPermission                   = false
-	// defaultMemberPermissions int64 = discordgo.PermissionManageServer
-
-	commands = []*discordgo.ApplicationCommand{
-		{
-			Name:        "ping",
-			Description: "pong",
-		},
-		cmd.DogCommand,
+	// Setup DB
+	db, err := sql.Open("sqlite3", config.DB.Path)
+	if err != nil {
+		log.Fatalf("Could not open sqlite db")
 	}
 
-	// Add commands here.
+	err = util.InitDB(db)
+	if err != nil {
+		log.Fatalf("%s", err)
+	}
+
+	//Add Commands here
 	commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
 		"ping": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			ping(s, i) // Assuming 'ping' is adjusted to accept JuiceBotConfig
+			cmd.PingAction(s, i)
 		},
 		"dog": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			cmd.DogAction(s, i, &config) // Adjust 'DogAction' to accept JuiceBotConfig
 		},
-	}
-)
-
-func ping(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: "pong!",
+		"addgame": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			cmd.AddGameAction(s, i, &config, db)
 		},
-	})
-}
+		"removegame": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			cmd.RemoveGameAction(s, i, &config, db)
+		},
+	}
 
-func init() {
 	s.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if h, ok := commandHandlers[i.ApplicationCommandData().Name]; ok {
 			h(s, i)
@@ -123,6 +127,7 @@ func main() {
 		if err != nil {
 			log.Panicf("Cannot create '%v' command: %v", v.Name, err)
 		}
+		log.Printf("Added command: %v", v.Name)
 		registeredCommands[i] = cmd
 	}
 

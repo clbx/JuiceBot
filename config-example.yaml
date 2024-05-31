@@ -1,4 +1,6 @@
 debug: true
+db:
+  path: /data/juicebot.db
 dogConfig:
   dogEmote:
 calloutConfig:
@@ -7,3 +9,7 @@ calloutConfig:
   calloutMessages:
   - <message>
   calloutChance: 1500
+games:
+  channels:
+  - guildid: <guild_id>
+    channelid: <channel_id>
