@@ -1,43 +1,29 @@
 package main
 
 import (
-	"database/sql"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
 
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/bwmarrin/discordgo"
+
 	"github.com/clbx/juicebot/cmd"
 	"github.com/clbx/juicebot/util"
 )
 
-var (
-	config util.JuiceBotConfig
-	db     *sql.DB
-	s      *discordgo.Session
+var config util.JuiceBotConfig
 
+// Bot parameters
+var (
 	GuildID        = flag.String("guild", "", "Test guild ID. If not passed - bot registers commands globally")
 	BotToken       = flag.String("token", "", "Bot access token")
 	RemoveCommands = flag.Bool("rmcmd", true, "Remove all commands after shutdowning or not")
 	ConfigPath     = flag.String("config", "./config.yaml", "Path to the config file")
-
-	// integerOptionMinValue          = 1.0
-	// dmPermission                   = false
-	// defaultMemberPermissions int64 = discordgo.PermissionManageServer
-
-	commands = []*discordgo.ApplicationCommand{
-		cmd.PingCommand,
-		cmd.DogCommand,
-		cmd.AddGameCommand,
-		cmd.RemoveGameCommand,
-	}
-
-	commandHandlers map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate)
 )
+
+var s *discordgo.Session
 
 func init() {
 	tokenEnv := os.Getenv("TOKEN")
@@ -53,7 +39,9 @@ func init() {
 	}
 
 	flag.Parse()
+}
 
+func init() {
 	var err error
 	s, err = discordgo.New("Bot " + *BotToken)
 	if err != nil {
@@ -65,34 +53,46 @@ func init() {
 	if config.Debug {
 		fmt.Printf("%+v\n", config)
 	}
+}
 
-	// Setup DB
-	db, err := sql.Open("sqlite3", config.DB.Path)
-	if err != nil {
-		log.Fatalf("Could not open sqlite db")
+var (
+	// integerOptionMinValue          = 1.0
+	// dmPermission                   = false
+	// defaultMemberPermissions int64 = discordgo.PermissionManageServer
+
+	commands = []*discordgo.ApplicationCommand{
+		{
+			Name:        "ping",
+			Description: "pong",
+		},
+		cmd.DogCommand,
+		cmd.ServersCommand,
 	}
 
-	err = util.InitDB(db)
-	if err != nil {
-		log.Fatalf("%s", err)
-	}
-
-	//Add Commands here
+	// Add commands here.
 	commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
 		"ping": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			cmd.PingAction(s, i)
+			ping(s, i) // Assuming 'ping' is adjusted to accept JuiceBotConfig
 		},
 		"dog": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			cmd.DogAction(s, i, &config) // Adjust 'DogAction' to accept JuiceBotConfig
 		},
-		"addgame": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			cmd.AddGameAction(s, i, &config, db)
-		},
-		"removegame": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			cmd.RemoveGameAction(s, i, &config, db)
+		"servers": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			cmd.ServersAction(s, i, &config)
 		},
 	}
+)
 
+func ping(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "pong!",
+		},
+	})
+}
+
+func init() {
 	s.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if h, ok := commandHandlers[i.ApplicationCommandData().Name]; ok {
 			h(s, i)
@@ -127,7 +127,7 @@ func main() {
 		if err != nil {
 			log.Panicf("Cannot create '%v' command: %v", v.Name, err)
 		}
-		log.Printf("Added command: %v", v.Name)
+		log.Printf("Registered %v\n", v.Name)
 		registeredCommands[i] = cmd
 	}
 
@@ -140,21 +140,14 @@ func main() {
 
 	if *RemoveCommands {
 		log.Println("Removing commands...")
-		// // We need to fetch the commands, since deleting requires the command ID.
-		// // We are doing this from the returned commands on line 375, because using
-		// // this will delete all the commands, which might not be desirable, so we
-		// // are deleting only the commands that we added.
-		// registeredCommands, err := s.ApplicationCommands(s.State.User.ID, *GuildID)
-		// if err != nil {
-		// 	log.Fatalf("Could not fetch registered commands: %v", err)
-		// }
-
 		for _, v := range registeredCommands {
 			err := s.ApplicationCommandDelete(s.State.User.ID, *GuildID, v.ID)
 			if err != nil {
 				log.Panicf("Cannot delete '%v' command: %v", v.Name, err)
 			}
+			log.Printf("Removed %v\n", v.Name)
 		}
+
 	}
 
 	log.Println("Gracefully shutting down.")

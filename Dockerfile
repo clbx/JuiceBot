@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 golang AS builder 
+FROM --platform=linux/amd64 golang:1.24.7 AS builder 
 WORKDIR /app
 # COPY go.mod ./
 # COPY go.sum ./
