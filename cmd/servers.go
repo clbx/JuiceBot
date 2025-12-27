@@ -22,9 +22,14 @@ import (
 // Kubernetes client
 var k8sClient *kubernetes.Clientset
 
-// Check if guildID is in comma-separated list of guild IDs
-func isGuildAuthorized(labelValue, guildID string) bool {
-	guilds := strings.Split(labelValue, ",")
+// Check if guildID is in comma-separated list of guild IDs from annotations
+func isGuildAuthorized(annotations map[string]string, guildID string) bool {
+	annotationValue, exists := annotations["juicecloud.org/juicebot-guilds"]
+	if !exists {
+		return false
+	}
+
+	guilds := strings.Split(annotationValue, ",")
 	for _, guild := range guilds {
 		if strings.TrimSpace(guild) == guildID {
 			return true
@@ -131,10 +136,11 @@ func ServersAction(s *discordgo.Session, i *discordgo.InteractionCreate, config 
 func handleListServers(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if k8sClient == nil {
 		if err := initKubernetesClient(); err != nil {
+			log.Printf("Failed to initialize Kubernetes client for user %s in guild %s: %v", i.Member.User.ID, i.GuildID, err)
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
-					Content: fmt.Sprintf("❌ Failed to connect to Kubernetes: %v", err),
+					Content: "❌ Unable to connect to game servers",
 				},
 			})
 			return
@@ -144,29 +150,31 @@ func handleListServers(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	var content string = "**Game Servers:**\n"
 	guildID := i.GuildID
 
-	// List all resources with the label, then filter by guild ID
-	deployments, err := k8sClient.AppsV1().Deployments("").List(context.TODO(), metav1.ListOptions{
-		LabelSelector: "juicecloud.org/juicebot-game-server",
+	// List all resources with the label in the games namespace, then filter by guild ID via annotations
+	deployments, err := k8sClient.AppsV1().Deployments("games").List(context.TODO(), metav1.ListOptions{
+		LabelSelector: "juicecloud.org/juicebot-game-server=true",
 	})
 	if err != nil {
+		log.Printf("Failed to list deployments for user %s in guild %s: %v", i.Member.User.ID, i.GuildID, err)
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf("❌ Failed to list deployments: %v", err),
+				Content: "❌ Unable to retrieve game servers",
 			},
 		})
 		return
 	}
 
 	// List StatefulSets
-	statefulSets, err := k8sClient.AppsV1().StatefulSets("").List(context.TODO(), metav1.ListOptions{
-		LabelSelector: "juicecloud.org/juicebot-game-server",
+	statefulSets, err := k8sClient.AppsV1().StatefulSets("games").List(context.TODO(), metav1.ListOptions{
+		LabelSelector: "juicecloud.org/juicebot-game-server=true",
 	})
 	if err != nil {
+		log.Printf("Failed to list statefulsets for user %s in guild %s: %v", i.Member.User.ID, i.GuildID, err)
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf("❌ Failed to list statefulsets: %v", err),
+				Content: "❌ Unable to retrieve game servers",
 			},
 		})
 		return
@@ -176,8 +184,7 @@ func handleListServers(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	foundServers := false
 	for _, deployment := range deployments.Items {
 		// Check if this deployment belongs to the current guild
-		labelValue, ok := deployment.Labels["juicecloud.org/juicebot-game-server"]
-		if !ok || !isGuildAuthorized(labelValue, guildID) {
+		if !isGuildAuthorized(deployment.Annotations, guildID) {
 			continue
 		}
 		foundServers = true
@@ -203,8 +210,7 @@ func handleListServers(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	// Filter and process StatefulSets by guild ID
 	for _, statefulSet := range statefulSets.Items {
 		// Check if this statefulSet belongs to the current guild
-		labelValue, ok := statefulSet.Labels["juicecloud.org/juicebot-game-server"]
-		if !ok || !isGuildAuthorized(labelValue, guildID) {
+		if !isGuildAuthorized(statefulSet.Annotations, guildID) {
 			continue
 		}
 		foundServers = true
@@ -231,7 +237,7 @@ func handleListServers(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf("No game servers found for this guild. Make sure deployments/statefulsets have the label `juicecloud.org/juicebot-game-server` with this guild ID (%s) in the comma-separated list", guildID),
+				Content: fmt.Sprintf("No game servers found for this guild. Make sure deployments/statefulsets have the label `juicecloud.org/juicebot-game-server=true` and annotation `juicecloud.org/juicebot-guilds` containing this guild ID (%s)", guildID),
 			},
 		})
 		return
@@ -250,7 +256,7 @@ func handleStartServer(s *discordgo.Session, i *discordgo.InteractionCreate, opt
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "Please specify a server ID to start (format: namespace/name)",
+				Content: "Please specify a server ID to start (format: games/name)",
 			},
 		})
 		return
@@ -260,10 +266,11 @@ func handleStartServer(s *discordgo.Session, i *discordgo.InteractionCreate, opt
 
 	if k8sClient == nil {
 		if err := initKubernetesClient(); err != nil {
+			log.Printf("Failed to initialize Kubernetes client for user %s in guild %s: %v", i.Member.User.ID, i.GuildID, err)
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
-					Content: fmt.Sprintf("❌ Failed to connect to Kubernetes: %v", err),
+					Content: "❌ Unable to connect to game servers",
 				},
 			})
 			return
@@ -276,7 +283,7 @@ func handleStartServer(s *discordgo.Session, i *discordgo.InteractionCreate, opt
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "❌ Server ID must be in format: namespace/name",
+				Content: "❌ Server ID must be in format: games/name",
 			},
 		})
 		return
@@ -285,16 +292,28 @@ func handleStartServer(s *discordgo.Session, i *discordgo.InteractionCreate, opt
 	namespace, name := parts[0], parts[1]
 	guildID := i.GuildID
 
+	// Only allow operations in the games namespace
+	if namespace != "games" {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: fmt.Sprintf("❌ Server **%s** not found", serverID),
+			},
+		})
+		return
+	}
+
 	// Try to scale deployment first
 	deployment, err := k8sClient.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err == nil {
 		// Check if it has the required label and belongs to this guild
-		labelValue, hasLabel := deployment.Labels["juicecloud.org/juicebot-game-server"]
-		if !hasLabel || !isGuildAuthorized(labelValue, guildID) {
+		hasLabel := deployment.Labels["juicecloud.org/juicebot-game-server"] == "true"
+		if !hasLabel || !isGuildAuthorized(deployment.Annotations, guildID) {
 			if !hasLabel {
 				log.Printf("User %s in guild %s attempted to access deployment %s/%s without juicebot label", i.Member.User.ID, guildID, namespace, name)
 			} else {
-				log.Printf("User %s in guild %s attempted to access resource %s/%s belonging to guilds %s", i.Member.User.ID, guildID, namespace, name, labelValue)
+				annotationValue := deployment.Annotations["juicecloud.org/juicebot-guilds"]
+				log.Printf("User %s in guild %s attempted to access resource %s/%s belonging to guilds %s", i.Member.User.ID, guildID, namespace, name, annotationValue)
 			}
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -320,10 +339,11 @@ func handleStartServer(s *discordgo.Session, i *discordgo.InteractionCreate, opt
 		deployment.Spec.Replicas = &replicas
 		_, err = k8sClient.AppsV1().Deployments(namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
 		if err != nil {
+			log.Printf("Failed to start deployment %s/%s for user %s in guild %s: %v", namespace, name, i.Member.User.ID, guildID, err)
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
-					Content: fmt.Sprintf("❌ Failed to start server: %v", err),
+					Content: "❌ Unable to start server",
 				},
 			})
 			return
@@ -342,12 +362,13 @@ func handleStartServer(s *discordgo.Session, i *discordgo.InteractionCreate, opt
 	statefulSet, err := k8sClient.AppsV1().StatefulSets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err == nil {
 		// Check if it has the required label and belongs to this guild
-		labelValue, hasLabel := statefulSet.Labels["juicecloud.org/juicebot-game-server"]
-		if !hasLabel || !isGuildAuthorized(labelValue, guildID) {
+		hasLabel := statefulSet.Labels["juicecloud.org/juicebot-game-server"] == "true"
+		if !hasLabel || !isGuildAuthorized(statefulSet.Annotations, guildID) {
 			if !hasLabel {
 				log.Printf("User %s in guild %s attempted to access statefulset %s/%s without juicebot label", i.Member.User.ID, guildID, namespace, name)
 			} else {
-				log.Printf("User %s in guild %s attempted to access resource %s/%s belonging to guilds %s", i.Member.User.ID, guildID, namespace, name, labelValue)
+				annotationValue := statefulSet.Annotations["juicecloud.org/juicebot-guilds"]
+				log.Printf("User %s in guild %s attempted to access resource %s/%s belonging to guilds %s", i.Member.User.ID, guildID, namespace, name, annotationValue)
 			}
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -373,10 +394,11 @@ func handleStartServer(s *discordgo.Session, i *discordgo.InteractionCreate, opt
 		statefulSet.Spec.Replicas = &replicas
 		_, err = k8sClient.AppsV1().StatefulSets(namespace).Update(context.TODO(), statefulSet, metav1.UpdateOptions{})
 		if err != nil {
+			log.Printf("Failed to start deployment %s/%s for user %s in guild %s: %v", namespace, name, i.Member.User.ID, guildID, err)
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
-					Content: fmt.Sprintf("❌ Failed to start server: %v", err),
+					Content: "❌ Unable to start server",
 				},
 			})
 			return
@@ -404,7 +426,7 @@ func handleStopServer(s *discordgo.Session, i *discordgo.InteractionCreate, opti
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "Please specify a server ID to stop (format: namespace/name)",
+				Content: "Please specify a server ID to stop (format: games/name)",
 			},
 		})
 		return
@@ -414,10 +436,11 @@ func handleStopServer(s *discordgo.Session, i *discordgo.InteractionCreate, opti
 
 	if k8sClient == nil {
 		if err := initKubernetesClient(); err != nil {
+			log.Printf("Failed to initialize Kubernetes client for user %s in guild %s: %v", i.Member.User.ID, i.GuildID, err)
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
-					Content: fmt.Sprintf("❌ Failed to connect to Kubernetes: %v", err),
+					Content: "❌ Unable to connect to game servers",
 				},
 			})
 			return
@@ -430,7 +453,7 @@ func handleStopServer(s *discordgo.Session, i *discordgo.InteractionCreate, opti
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "❌ Server ID must be in format: namespace/name",
+				Content: "❌ Server ID must be in format: games/name",
 			},
 		})
 		return
@@ -439,16 +462,28 @@ func handleStopServer(s *discordgo.Session, i *discordgo.InteractionCreate, opti
 	namespace, name := parts[0], parts[1]
 	guildID := i.GuildID
 
+	// Only allow operations in the games namespace
+	if namespace != "games" {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: fmt.Sprintf("❌ Server **%s** not found", serverID),
+			},
+		})
+		return
+	}
+
 	// Try to scale deployment first
 	deployment, err := k8sClient.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err == nil {
 		// Check if it has the required label and belongs to this guild
-		labelValue, hasLabel := deployment.Labels["juicecloud.org/juicebot-game-server"]
-		if !hasLabel || !isGuildAuthorized(labelValue, guildID) {
+		hasLabel := deployment.Labels["juicecloud.org/juicebot-game-server"] == "true"
+		if !hasLabel || !isGuildAuthorized(deployment.Annotations, guildID) {
 			if !hasLabel {
 				log.Printf("User %s in guild %s attempted to access deployment %s/%s without juicebot label", i.Member.User.ID, guildID, namespace, name)
 			} else {
-				log.Printf("User %s in guild %s attempted to access resource %s/%s belonging to guilds %s", i.Member.User.ID, guildID, namespace, name, labelValue)
+				annotationValue := deployment.Annotations["juicecloud.org/juicebot-guilds"]
+				log.Printf("User %s in guild %s attempted to access resource %s/%s belonging to guilds %s", i.Member.User.ID, guildID, namespace, name, annotationValue)
 			}
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -474,10 +509,11 @@ func handleStopServer(s *discordgo.Session, i *discordgo.InteractionCreate, opti
 		deployment.Spec.Replicas = &replicas
 		_, err = k8sClient.AppsV1().Deployments(namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
 		if err != nil {
+			log.Printf("Failed to stop deployment %s/%s for user %s in guild %s: %v", namespace, name, i.Member.User.ID, guildID, err)
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
-					Content: fmt.Sprintf("❌ Failed to stop server: %v", err),
+					Content: "❌ Unable to stop server",
 				},
 			})
 			return
@@ -496,12 +532,13 @@ func handleStopServer(s *discordgo.Session, i *discordgo.InteractionCreate, opti
 	statefulSet, err := k8sClient.AppsV1().StatefulSets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err == nil {
 		// Check if it has the required label and belongs to this guild
-		labelValue, hasLabel := statefulSet.Labels["juicecloud.org/juicebot-game-server"]
-		if !hasLabel || !isGuildAuthorized(labelValue, guildID) {
+		hasLabel := statefulSet.Labels["juicecloud.org/juicebot-game-server"] == "true"
+		if !hasLabel || !isGuildAuthorized(statefulSet.Annotations, guildID) {
 			if !hasLabel {
 				log.Printf("User %s in guild %s attempted to access statefulset %s/%s without juicebot label", i.Member.User.ID, guildID, namespace, name)
 			} else {
-				log.Printf("User %s in guild %s attempted to access resource %s/%s belonging to guilds %s", i.Member.User.ID, guildID, namespace, name, labelValue)
+				annotationValue := statefulSet.Annotations["juicecloud.org/juicebot-guilds"]
+				log.Printf("User %s in guild %s attempted to access resource %s/%s belonging to guilds %s", i.Member.User.ID, guildID, namespace, name, annotationValue)
 			}
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -527,10 +564,11 @@ func handleStopServer(s *discordgo.Session, i *discordgo.InteractionCreate, opti
 		statefulSet.Spec.Replicas = &replicas
 		_, err = k8sClient.AppsV1().StatefulSets(namespace).Update(context.TODO(), statefulSet, metav1.UpdateOptions{})
 		if err != nil {
+			log.Printf("Failed to stop deployment %s/%s for user %s in guild %s: %v", namespace, name, i.Member.User.ID, guildID, err)
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
-					Content: fmt.Sprintf("❌ Failed to stop server: %v", err),
+					Content: "❌ Unable to stop server",
 				},
 			})
 			return
