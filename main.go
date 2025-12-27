@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"fmt"
 	"log"
@@ -8,6 +9,7 @@ import (
 	"os/signal"
 
 	"github.com/bwmarrin/discordgo"
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/clbx/juicebot/cmd"
 	"github.com/clbx/juicebot/util"
@@ -24,6 +26,7 @@ var (
 )
 
 var s *discordgo.Session
+var db *sql.DB
 
 func init() {
 	tokenEnv := os.Getenv("TOKEN")
@@ -37,6 +40,18 @@ func init() {
 		log.Printf("Config path loaded from Environment Variable")
 		ConfigPath = &configEnv
 	}
+
+	postgresConfigEnv := os.Getenv("POSTGRES_URI")
+	if postgresConfigEnv != "" {
+		log.Printf("Postgres URI Loaded")
+	}
+
+	//init db
+	db, err := sql.Open("pgx", postgresConfigEnv)
+	if err != nil {
+		log.Fatalf("Failed to connect to database, %W", err)
+	}
+	util.InitDB(db)
 
 	flag.Parse()
 }
@@ -72,10 +87,10 @@ var (
 	// Add commands here.
 	commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
 		"ping": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			ping(s, i) // Assuming 'ping' is adjusted to accept JuiceBotConfig
+			ping(s, i)
 		},
 		"dog": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			cmd.DogAction(s, i, &config) // Adjust 'DogAction' to accept JuiceBotConfig
+			cmd.DogAction(s, i, &config)
 		},
 		"servers": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			cmd.ServersAction(s, i, &config)
@@ -107,6 +122,10 @@ func init() {
 
 	s.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
 		cmd.CalloutHandler(s, m, &config)
+	})
+
+	s.AddHandler(func(s *discordgo.Session, m *discordgo.GuildMemberUpdate) {
+		cmd.NameHistoryHandler(s, m, &config)
 	})
 }
 

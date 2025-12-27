@@ -7,8 +7,9 @@ import (
 )
 
 type JuiceBotConfig struct {
-	Debug     bool `yaml:"debug"`
-	DogConfig struct {
+	Debug             bool     `yaml:"debug"`
+	NameHistoryGuilds []string `yaml:"nameHistoryGuilds"`
+	DogConfig         struct {
 		DogEmote string `yaml:"dogEmote"`
 	} `yaml:"dogConfig"`
 	CalloutConfig struct {
