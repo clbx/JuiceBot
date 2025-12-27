@@ -7,11 +7,11 @@ RUN go mod download
 RUN go build .
 
 FROM --platform=linux/amd64 debian:bookworm-slim
-ENV TOKEN ${TOKEN}
+#ENV TOKEN ${TOKEN}
 
-LABEL "org.opencontainers.image.source" "https://github.com/clbx/juicebot" \
-    "org.opencontainers.image.version" "0.1.0" \
-    "org.opencontainers.image.base.name" "golang" 
+LABEL "org.opencontainers.image.source"="https://github.com/clbx/juicebot" \
+    "org.opencontainers.image.version"="0.1.0" \
+    "org.opencontainers.image.base.name"="golang" 
 
 RUN apt update
 RUN apt install ca-certificates -y

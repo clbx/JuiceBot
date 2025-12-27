@@ -52,6 +52,9 @@ func DogAction(s *discordgo.Session, i *discordgo.InteractionCreate, config *uti
 			},
 		})
 	}
+
+	//Log the dog map
+	fmt.Printf("Dogging Map: %+v\n", dogging)
 }
 
 func DogHandler(s *discordgo.Session, m *discordgo.MessageCreate, config *util.JuiceBotConfig) {
