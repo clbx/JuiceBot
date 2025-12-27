@@ -7,7 +7,7 @@ import (
 	"github.com/clbx/juicebot/util"
 )
 
-//which guild is which user being dogged in
+// which guild is which user being dogged in
 var dogging = make(map[string]string)
 
 var DogCommand = &discordgo.ApplicationCommand{
@@ -32,6 +32,7 @@ func DogAction(s *discordgo.Session, i *discordgo.InteractionCreate, config *uti
 	}
 
 	if len(options) == 0 {
+		dogging[i.GuildID] = ""
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
@@ -61,8 +62,8 @@ func DogHandler(s *discordgo.Session, m *discordgo.MessageCreate, config *util.J
 		}
 	}
 
-	emojis := m.GetCustomEmojis()
-	for i := 0; i < len(emojis); i++ {
-		fmt.Printf("%s\n", emojis[i].ID)
-	}
+	// emojis := m.GetCustomEmojis()
+	// for i := 0; i < len(emojis); i++ {
+	// 	fmt.Printf("%s\n", emojis[i].ID)
+	// }
 }
