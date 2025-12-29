@@ -10,8 +10,6 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/clbx/juicebot/util"
 
-	// appsv1 "k8s.io/api/apps/v1"
-	// corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -19,7 +17,6 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
-// Kubernetes client
 var k8sClient *kubernetes.Clientset
 
 // Check if guildID is in comma-separated list of guild IDs from annotations

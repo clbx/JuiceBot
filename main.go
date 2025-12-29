@@ -47,7 +47,8 @@ func init() {
 	}
 
 	//init db
-	db, err := sql.Open("pgx", postgresConfigEnv)
+	var err error
+	db, err = sql.Open("pgx", postgresConfigEnv)
 	if err != nil {
 		log.Fatalf("Failed to connect to database, %W", err)
 	}
@@ -63,11 +64,16 @@ func init() {
 		log.Fatalf("Invalid bot parameters: %v", err)
 	}
 
+	s.Identify.Intents = discordgo.IntentsGuildMembers | discordgo.IntentsGuilds | discordgo.IntentsGuildMessages | discordgo.IntentsMessageContent
+	s.State.TrackMembers = true
+
 	config = *util.NewJuiceBotConfig(*ConfigPath)
 
 	if config.Debug {
 		fmt.Printf("%+v\n", config)
 	}
+
+	log.Printf("Bot intents set to: %d", s.Identify.Intents)
 }
 
 var (
@@ -82,6 +88,7 @@ var (
 		},
 		cmd.DogCommand,
 		cmd.ServersCommand,
+		cmd.NameHistoryCommand,
 	}
 
 	// Add commands here.
@@ -94,6 +101,9 @@ var (
 		},
 		"servers": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			cmd.ServersAction(s, i, &config)
+		},
+		"namehistory": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			cmd.NameHistoryAction(s, i, &config, db)
 		},
 	}
 )
@@ -125,14 +135,20 @@ func init() {
 	})
 
 	s.AddHandler(func(s *discordgo.Session, m *discordgo.GuildMemberUpdate) {
-		cmd.NameHistoryHandler(s, m, &config)
+		log.Printf("GuildMemberUpdate event received - User: %s, Guild: %s, Nick: %s", m.User.ID, m.GuildID, m.Nick)
+		if m.BeforeUpdate != nil {
+			log.Printf("  Before: Nick=%s", m.BeforeUpdate.Nick)
+		}
+		cmd.NameHistoryHandler(s, m, &config, db)
 	})
+
 }
 
 func main() {
 
 	s.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
 		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
+		log.Printf("Ready event - Guilds: %d", len(r.Guilds))
 	})
 	err := s.Open()
 	if err != nil {
@@ -140,6 +156,7 @@ func main() {
 	}
 
 	log.Println("Adding commands...")
+	log.Printf("%d Commands found\n", len(commands))
 	registeredCommands := make([]*discordgo.ApplicationCommand, len(commands))
 	for i, v := range commands {
 		cmd, err := s.ApplicationCommandCreate(s.State.User.ID, *GuildID, v)
