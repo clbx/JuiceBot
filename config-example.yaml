@@ -13,3 +13,10 @@ games:
   channels:
   - guildid: <guild_id>
     channelid: <channel_id>
+civ6:
+  guildid: <guild_id>
+  channelid: <channel_id>
+  webhookSecret: <random_secret_string>
+  listenAddress: ":8080"
+  players:
+    <civ_player_name>: <discord_user_id>

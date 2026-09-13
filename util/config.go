@@ -26,6 +26,13 @@ type JuiceBotConfig struct {
 			ChannelID string `yaml:"channelid"`
 		} `yaml:"channels"`
 	} `yaml:"games"`
+	Civ6 struct {
+		GuildID       string            `yaml:"guildid"`
+		ChannelID     string            `yaml:"channelid"`
+		WebhookSecret string            `yaml:"webhookSecret"`
+		ListenAddress string            `yaml:"listenAddress"` // optional, default ":8080"
+		Players       map[string]string `yaml:"players"`       // playerName -> discord user ID
+	} `yaml:"civ6"`
 }
 
 func NewJuiceBotConfig(configPath string) *JuiceBotConfig {

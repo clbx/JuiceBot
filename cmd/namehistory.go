@@ -38,8 +38,8 @@ func NameHistoryHandler(s *discordgo.Session, m *discordgo.GuildMemberUpdate, co
 		log.Printf("Failed to write name change to the DB %w", err)
 	}
 
-	message := fmt.Sprintf("<@%s> has a new name!", m.User.ID)
-	_, err = s.ChannelMessageSend("1422037671563235489", message)
+	//message := fmt.Sprintf("<@%s> has a new name!", m.User.ID)
+	//_, err = s.ChannelMessageSend("1422037671563235489", message)
 	if err != nil {
 		log.Printf("Failed to send name change announcement: %v", err)
 	}

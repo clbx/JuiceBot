@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 
@@ -154,6 +155,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot open the session: %v", err)
 	}
+
+	// Start the Civ 6 turn-notification webhook server alongside the bot.
+	go func() {
+		mux := http.NewServeMux()
+		mux.HandleFunc("POST /civ6/webhook/{secret}", cmd.Civ6WebhookHandler(s, db, &config))
+		addr := config.Civ6.ListenAddress
+		if addr == "" {
+			addr = ":8080"
+		}
+		log.Printf("Starting Civ6 webhook server on %s", addr)
+		if err := http.ListenAndServe(addr, mux); err != nil {
+			log.Fatalf("webhook server failed: %v", err)
+		}
+	}()
 
 	log.Println("Adding commands...")
 	log.Printf("%d Commands found\n", len(commands))

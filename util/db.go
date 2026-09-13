@@ -29,6 +29,15 @@ func InitDB(db *sql.DB) error {
 			changed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);`
 
+	createCivTurnsTableQuery := `
+		CREATE TABLE IF NOT EXISTS civ_turns (
+			id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+			game_name TEXT,
+			turn_number INTEGER,
+			player_name TEXT,
+			received_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);`
+
 	_, err := db.Exec(createGamesTableQuery)
 	if err != nil {
 		return fmt.Errorf("failed to create games table. %w", err)
@@ -42,6 +51,11 @@ func InitDB(db *sql.DB) error {
 	_, err = db.Exec(createNameHistoryTableQuery)
 	if err != nil {
 		return fmt.Errorf("Failed to create name history table. %w", err)
+	}
+
+	_, err = db.Exec(createCivTurnsTableQuery)
+	if err != nil {
+		return fmt.Errorf("failed to create civ_turns table. %w", err)
 	}
 
 	return nil
@@ -59,6 +73,21 @@ func AddNameEntry(db *sql.DB, entry NameDBEntry) error {
 	_, err := db.Exec(addNameEntryQuery, entry.GuildID, entry.UserID, entry.NewDisplayName)
 	if err != nil {
 		return fmt.Errorf("Failed to write name change update to the DB. %w", err)
+	}
+	return nil
+}
+
+type CivTurnEntry struct {
+	GameName   string
+	PlayerName string
+	TurnNumber int
+}
+
+func AddCivTurn(db *sql.DB, entry CivTurnEntry) error {
+	addCivTurnQuery := `INSERT INTO civ_turns (game_name, turn_number, player_name) VALUES ($1, $2, $3)`
+	_, err := db.Exec(addCivTurnQuery, entry.GameName, entry.TurnNumber, entry.PlayerName)
+	if err != nil {
+		return fmt.Errorf("failed to write civ turn to the DB. %w", err)
 	}
 	return nil
 }
